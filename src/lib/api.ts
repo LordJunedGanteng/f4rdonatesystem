@@ -101,6 +101,11 @@ export const api = {
     get<{ leaderboard: LeaderboardEntry[] }>(`/api/leaderboard/${timeframe}`, {
       license_key: licenseKey,
     }),
+  admin: {
+    users: () =>
+      get<{ users: AdminUser[] }>("/api/admin/users"),
+  },
+
   license: {
     validate: (licenseKey: string, gameId: string) =>
       post<LicenseValidation>("/api/license/validate", {
@@ -117,8 +122,17 @@ export const api = {
   },
 };
 
-
 // ── Types ─────────────────────────────────────────────────────────────────────
+export interface AdminUser {
+  id: number;
+  username: string;
+  role: string;
+  created_at: string;
+  license_key: string | null;
+  status: string | null;
+  universe_ids: string[];
+  platform_api_keys: Record<string, string>;
+}
 export interface Donation {
   id?:          number;
   donation_id?: string;

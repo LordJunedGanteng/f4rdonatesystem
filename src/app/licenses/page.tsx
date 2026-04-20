@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { api, type License } from "@/lib/api";
+import { api, type License, PLATFORM_LABEL } from "@/lib/api";
 import { useLicenseKey } from "@/lib/use-license";
+import { useAuth } from "@/lib/auth";
 
 const statusBadge: Record<string, string> = {
   active:    "bg-emerald-500/20 text-emerald-400",
@@ -14,6 +15,7 @@ function copyToClipboard(text: string) {
 }
 
 export default function LicensesPage() {
+  const { user } = useAuth();
   const { key: currentKey, save: saveKey } = useLicenseKey();
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,19 +30,19 @@ export default function LicensesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.license.list(1); // user_id=1
+      const res = await api.license.list(user?.user_id ?? 1); // fallback
       setLicenses(res.licenses ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, []);
+  }, [user?.user_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (user?.user_id) load(); }, [load, user?.user_id]);
 
   const create = async () => {
-    if (!gameName.trim() || !gameId.trim()) return;
+    if (!gameName.trim() || !gameId.trim() || !user?.user_id) return;
     setCreating(true);
     try {
-      const res = await api.license.create({ user_id: 1, game_id: gameId.trim(), game_name: gameName.trim() });
+      const res = await api.license.create({ user_id: user.user_id, game_id: gameId.trim(), game_name: gameName.trim() });
       setNewKey(res.license_key);
       setShowCreate(false);
       setGameName(""); setGameId("");
@@ -61,6 +63,12 @@ export default function LicensesPage() {
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
   };
+
+  if (user?.role === "admin") {
+    return <AdminVault />;
+  }
+
+  if (!user) return null;
 
   const filtered = licenses.filter((l) =>
     !search || l.game_name?.toLowerCase().includes(search.toLowerCase()) || l.license_key.toLowerCase().includes(search.toLowerCase())
@@ -223,6 +231,143 @@ export default function LicensesPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminVault() {
+  const [users, setUsers] = useState<import("@/lib/api").AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.admin.users();
+      setUsers(res.users);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCopy = (text: string, id: string) => {
+    copyToClipboard(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const filtered = users.filter((u) => 
+    !search || u.username.toLowerCase().includes(search.toLowerCase()) || (u.license_key && u.license_key.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div className="px-4 pb-8 max-w-2xl mx-auto">
+      <section className="mb-8 mt-4">
+        <div className="space-y-1">
+          <p className="font-headline uppercase tracking-widest text-[10px] font-bold text-on-primary-container">Admin Archive</p>
+          <h2 className="text-3xl font-bold font-headline">Generated Keys Vault</h2>
+        </div>
+      </section>
+
+      <section className="space-y-4 mb-6">
+        <div className="relative group">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">search</span>
+          <input
+            className="w-full bg-surface-container-lowest rounded-xl py-3.5 pl-12 pr-4 text-on-surface placeholder:text-outline-variant focus:ring-1 focus:ring-primary/40 transition-all text-sm outline-none"
+            placeholder="Search accounts or license keys…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="glass-panel p-5 rounded-xl h-48 animate-pulse border border-outline-variant/10" />
+            ))
+          : filtered.map((u) => (
+              <div key={u.id} className="glass-panel p-5 rounded-xl border border-outline-variant/10 shadow-lg space-y-4">
+                <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
+                  <div>
+                    <h3 className="font-headline font-bold text-lg text-primary">{u.username}</h3>
+                    <p className="text-xs text-outline">{new Date(u.created_at).toLocaleString("id-ID")}</p>
+                  </div>
+                  {u.role === 'admin' && (
+                    <span className="text-[10px] px-2 py-1 rounded bg-error-container/20 text-error font-bold uppercase tracking-wider">
+                      Administrator
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-outline">License Key</label>
+                    <div className="flex bg-surface-container-lowest border border-outline-variant/10 rounded-lg overflow-hidden">
+                      <div className="flex-1 px-3 py-2 text-sm font-mono text-secondary-fixed break-all overflow-hidden text-ellipsis whitespace-nowrap">
+                        {u.license_key || "No license generated"}
+                      </div>
+                      {u.license_key && (
+                        <button onClick={() => handleCopy(u.license_key!, `lic_${u.id}`)}
+                          className="px-3 bg-surface-variant/20 hover:bg-surface-variant/40 transition-colors border-l border-outline-variant/10 text-on-surface-variant flex items-center justify-center w-12">
+                          <span className="material-symbols-outlined text-sm">{copied === `lic_${u.id}` ? "check" : "content_copy"}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-outline">Universe IDs</label>
+                    <div className="flex flex-wrap gap-2">
+                      {u.universe_ids?.length > 0 ? u.universe_ids.map((id, idx) => (
+                        <span key={idx} className="bg-surface-container text-on-surface text-xs font-mono px-2 py-1 rounded">
+                          {id}
+                        </span>
+                      )) : <span className="text-xs text-outline italic">None</span>}
+                    </div>
+                  </div>
+
+                  <div className="border border-outline-variant/10 rounded-lg overflow-hidden">
+                    <div className="bg-surface-container-lowest px-3 py-1.5 border-b border-outline-variant/10 flex items-center gap-2">
+                       <span className="material-symbols-outlined text-[14px] text-tertiary">key</span>
+                       <span className="text-[10px] uppercase font-bold tracking-widest text-outline">Roblox Config Keys</span>
+                    </div>
+                    {Object.entries(u.platform_api_keys || {}).length > 0 ? (
+                      <div className="divide-y divide-outline-variant/5">
+                        {Object.entries(PLATFORM_LABEL).map(([platId, platName]) => {
+                          const apiKey = u.platform_api_keys[platId];
+                          if (!apiKey) return null;
+                          return (
+                            <div key={platId} className="flex bg-surface-container-lowest overflow-hidden items-center group">
+                              <div className="w-24 text-[11px] font-bold px-3 py-2 text-outline-variant uppercase">
+                                {platName}
+                              </div>
+                              <div className="flex-1 text-xs font-mono text-on-surface/80 py-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                                {apiKey}
+                              </div>
+                              <button onClick={() => handleCopy(apiKey, `plat_${u.id}_${platId}`)}
+                                className="px-3 py-2 bg-surface-variant/10 hover:bg-surface-variant/40 transition-colors border-l border-outline-variant/10 text-on-surface flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <span className="material-symbols-outlined text-[14px]">
+                                  {copied === `plat_${u.id}_${platId}` ? "check" : "content_copy"}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 text-xs text-outline italic bg-surface-container-lowest">
+                        No config keys generated yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+        }
+      </section>
     </div>
   );
 }
