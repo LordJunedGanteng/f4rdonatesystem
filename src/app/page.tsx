@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { api, formatRp, formatRpFull, PLATFORM_COLOR, PLATFORM_LABEL, type Donation, type LeaderboardEntry, type StatsResponse } from "@/lib/api";
-import { useLicenseKey } from "@/lib/use-license";
+import { getLicenseKey } from "@/lib/auth";
+import AuthGate from "@/components/AuthGate";
 
 function StatCard({ label, value, trend, dir, prefix }: {
   label: string; value: string; trend: string; dir: 1 | 0 | -1; prefix?: string;
@@ -44,11 +45,23 @@ function timeAgo(iso: string): string {
 }
 
 export default function DashboardPage() {
-  const { key } = useLicenseKey();
+  return (
+    <AuthGate>
+      <DashboardContent />
+    </AuthGate>
+  );
+}
+
+function DashboardContent() {
+  const [key, setKey] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [recent, setRecent] = useState<Donation[]>([]);
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setKey(getLicenseKey());
+  }, []);
 
   const load = useCallback(async () => {
     if (!key) return;
@@ -65,7 +78,15 @@ export default function DashboardPage() {
     finally { setLoading(false); }
   }, [key]);
 
-  useEffect(() => { load(); const id = setInterval(load, 30_000); return () => clearInterval(id); }, [load]);
+  useEffect(() => { 
+    if (key) {
+      load(); 
+      const id = setInterval(load, 30_000); 
+      return () => clearInterval(id); 
+    } else {
+      setLoading(false);
+    }
+  }, [key, load]);
 
   const t = stats?.totals;
   const bars = stats?.by_day ?? [];
@@ -165,7 +186,7 @@ export default function DashboardPage() {
 
       {/* Leaderboard */}
       <section className="space-y-4 pb-4">
-        <h2 className="text-lg font-bold font-headline">Top Command Donors</h2>
+        <h2 className="text-lg font-bold font-headline">Top Donors</h2>
         <div className="bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10">
           <table className="w-full text-left">
             <thead className="bg-surface-container-high">

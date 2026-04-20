@@ -1,30 +1,47 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL!;
 
+function getAuthHeader(): Record<string, string> {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('f4r_token');
+    if (token) return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+}
+
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(BASE + path);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+  const res = await fetch(url.toString(), { headers: getAuthHeader() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API ${path} → ${res.status}`);
+  }
   return res.json();
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API ${path} → ${res.status}`);
+  }
   return res.json();
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API ${path} → ${res.status}`);
+  }
   return res.json();
 }
 
@@ -36,8 +53,41 @@ export const WEBHOOK_URLS: Record<string, string> = {
   bagibagi:   `${BASE}/webhook/bagibagi`,
 };
 
+export const apiCall = async <T>(path: string, options: RequestInit): Promise<T> => {
+  const res = await fetch(BASE + path, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...getAuthHeader(),
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API ${path} → ${res.status}`);
+  }
+  return res.json();
+}
+
 export const api = {
   status: () => get<{ ok: boolean; ts: number }>("/api/status"),
+
+  platform: {
+    generateSecret: (platform: string) =>
+      post<{ ok: boolean; platform: string; webhook_secret: string; webhook_url: string }>(
+        "/api/platform/generate-secret",
+        { platform },
+      ),
+
+    saveApiKey: (platform: string, apiKey: string) =>
+      post<{ ok: boolean }>("/api/platform/save-apikey", { platform, api_key: apiKey }),
+
+    getConfigs: () =>
+      get<{ configs: PlatformConfig[] }>("/api/platform/configs"),
+
+    toggle: (platform: string, isActive: boolean) =>
+      post<{ ok: boolean }>("/api/platform/toggle", { platform, is_active: isActive }),
+  },
+
   donations: {
     recent: (licenseKey: string, limit = 10) =>
       get<{ donations: Donation[] }>("/api/donations/recent", {
@@ -66,6 +116,7 @@ export const api = {
       put<{ ok: boolean }>(`/api/licenses/${id}`, body),
   },
 };
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface Donation {
@@ -100,6 +151,16 @@ export interface LicenseValidation {
   owner?:       string;
   expires_at?:  string;
   reason?:      string;
+}
+
+export interface PlatformConfig {
+  platform:         string;
+  has_api_key:      boolean;
+  webhook_secret:   string | null;
+  webhook_url:      string | null;
+  is_active:        boolean;
+  last_verified_at: string | null;
+  platform_api_key?: string;
 }
 
 export interface License {
