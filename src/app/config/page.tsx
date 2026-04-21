@@ -129,16 +129,24 @@ function PlatformCard({
     setTesting(true);
     setTestResult(null);
     try {
+      const payload = p.id === 'trakteer' ? {
+        tr_id: "test_" + Math.random().toString(36).slice(2,8),
+        supporter_name: "Test User",
+        unit_value: 1000,
+        quantity: 1,
+        supporter_message: "Test ping"
+      } : {
+        donation_id: "test_" + Math.random().toString(36).slice(2,8),
+        donor_name: "Test User",
+        amount: 1000,
+        currency: "IDR",
+        message: "Test ping",
+      };
+
       const res = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          donation_id: "test_" + Math.random().toString(36).slice(2,8),
-          donor_name: "Test User",
-          amount: 1000,
-          currency: "IDR",
-          message: "Test ping",
-        }),
+        body: JSON.stringify(payload),
       });
       setTestResult(res.ok ? "ok" : "fail");
     } catch {
