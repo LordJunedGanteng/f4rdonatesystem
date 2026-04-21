@@ -37,6 +37,20 @@ const PLATFORMS: PlatformDef[] = [
     saveCls: "from-tertiary to-tertiary-container text-on-tertiary-fixed shadow-[0_8px_16px_rgba(96,50,0,0.3)]",
     ringCls: "focus:ring-tertiary/40",
   },
+  {
+    id: "trakteer", name: "Trakteer",
+    color: "text-error", borderCls: "border-error/20 hover:border-error/40 transition-colors",
+    badgeCls: "bg-error/10 text-error",
+    saveCls: "from-error to-error/80 text-white shadow-[0_8px_16px_rgba(192,21,21,0.3)]",
+    ringCls: "focus:ring-error/40",
+  },
+  {
+    id: "twitch", name: "Twitch",
+    color: "text-indigo-400", borderCls: "border-indigo-500/20 hover:border-indigo-500/40 transition-colors",
+    badgeCls: "bg-indigo-500/10 text-indigo-400",
+    saveCls: "from-indigo-600 to-indigo-800 text-white shadow-[0_8px_16px_rgba(79,70,229,0.3)]",
+    ringCls: "focus:ring-indigo-500/40",
+  },
 ];
 
 function PlatformCard({

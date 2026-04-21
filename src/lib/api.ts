@@ -204,10 +204,14 @@ export const PLATFORM_COLOR: Record<string, string> = {
   saweria:    "text-primary",
   socialbuzz: "text-secondary",
   bagibagi:   "text-tertiary",
+  trakteer:   "text-error",
+  twitch:     "text-indigo-400",
 };
 
 export const PLATFORM_LABEL: Record<string, string> = {
   saweria:    "Saweria",
   socialbuzz: "SocialBuzz",
   bagibagi:   "BagiBagi",
+  trakteer:   "Trakteer",
+  twitch:     "Twitch",
 };
