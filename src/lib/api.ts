@@ -78,6 +78,9 @@ export const api = {
         { platform },
       ),
 
+    generateSecret: (platform: string) =>
+      post<{ ok: boolean, webhook_secret: string, webhook_url: string }>("/api/platform/generate-secret", { platform }),
+
     saveApiKey: (platform: string, apiKey: string) =>
       post<{ ok: boolean }>("/api/platform/save-apikey", { platform, api_key: apiKey }),
 
@@ -205,7 +208,6 @@ export const PLATFORM_COLOR: Record<string, string> = {
   socialbuzz: "text-secondary",
   bagibagi:   "text-tertiary",
   trakteer:   "text-error",
-  twitch:     "text-indigo-400",
 };
 
 export const PLATFORM_LABEL: Record<string, string> = {
@@ -213,5 +215,4 @@ export const PLATFORM_LABEL: Record<string, string> = {
   socialbuzz: "SocialBuzz",
   bagibagi:   "BagiBagi",
   trakteer:   "Trakteer",
-  twitch:     "Twitch",
 };
