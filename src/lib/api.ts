@@ -73,12 +73,6 @@ export const api = {
 
   platform: {
     generateSecret: (platform: string) =>
-      post<{ ok: boolean; platform: string; webhook_secret: string; webhook_url: string }>(
-        "/api/platform/generate-secret",
-        { platform },
-      ),
-
-    generateSecret: (platform: string) =>
       post<{ ok: boolean, webhook_secret: string, webhook_url: string }>("/api/platform/generate-secret", { platform }),
 
     saveApiKey: (platform: string, apiKey: string) =>
@@ -107,6 +101,8 @@ export const api = {
   admin: {
     users: () =>
       get<{ users: AdminUser[] }>("/api/admin/users"),
+    deleteUser: (id: number) =>
+      del<{ ok: boolean }>(`/api/admin/users/${id}`),
   },
 
   license: {

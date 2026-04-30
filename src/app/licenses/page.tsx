@@ -250,6 +250,16 @@ function AdminVault() {
     finally { setLoading(false); }
   }, []);
 
+  const handleDelete = async (id: number, username: string) => {
+    if (!confirm(`Hapus data buat "${username}"?`)) return;
+    try {
+      await api.admin.deleteUser(id);
+      load();
+    } catch (err: any) {
+      alert(err.message || "Gagal menghapus user");
+    }
+  };
+
   useEffect(() => { load(); }, [load]);
 
   const handleCopy = (text: string, id: string) => {
@@ -291,15 +301,24 @@ function AdminVault() {
           : filtered.map((u) => (
               <div key={u.id} className="glass-panel p-5 rounded-xl border border-outline-variant/10 shadow-lg space-y-4">
                 <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
-                  <div>
-                    <h3 className="font-headline font-bold text-lg text-primary">{u.username}</h3>
-                    <p className="text-xs text-outline">{new Date(u.created_at).toLocaleString("id-ID")}</p>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <h3 className="font-headline font-bold text-lg text-primary">{u.username}</h3>
+                      <p className="text-xs text-outline">{new Date(u.created_at).toLocaleString("id-ID")}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {u.role === 'admin' ? (
+                        <span className="text-[10px] px-2 py-1 rounded bg-error-container/20 text-error font-bold uppercase tracking-wider">
+                          Administrator
+                        </span>
+                      ) : (
+                        <button onClick={() => handleDelete(u.id, u.username)}
+                          className="p-1.5 rounded-lg bg-error/10 hover:bg-error/20 text-error transition-colors">
+                          <span className="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {u.role === 'admin' && (
-                    <span className="text-[10px] px-2 py-1 rounded bg-error-container/20 text-error font-bold uppercase tracking-wider">
-                      Administrator
-                    </span>
-                  )}
                 </div>
 
                 <div className="space-y-3">

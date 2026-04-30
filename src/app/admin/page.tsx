@@ -124,7 +124,8 @@ function AdminContent() {
 {`Config.PLATFORM_KEYS = {
   saweria    = "${result.platform_api_keys.saweria}",
   socialbuzz = "${result.platform_api_keys.socialbuzz}",
-  bagibagi   = "${result.platform_api_keys.bagibagi}"
+  bagibagi   = "${result.platform_api_keys.bagibagi}",
+  trakteer   = "${result.platform_api_keys.trakteer}"
 }`}
                   </pre>
                 </div>
