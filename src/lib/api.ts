@@ -45,7 +45,20 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: "DELETE",
+    headers: getAuthHeader(),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API ${path} → ${res.status}`);
+  }
+  return res.json();
+}
+
 export const WORKER_URL = BASE;
+
 
 export const WEBHOOK_URLS: Record<string, string> = {
   saweria:    `${BASE}/webhook/saweria`,
@@ -116,8 +129,13 @@ export const api = {
       get<{ licenses: License[] }>("/api/licenses", { user_id: String(userId) }),
     create: (body: { user_id: number; game_id: string; game_name?: string; expires_at?: string }) =>
       post<{ license_key: string }>("/api/licenses", body),
-    update: (id: number, body: { status?: string; expires_at?: string }) =>
+    update: (id: number, body: { status?: string; expires_at?: string; game_id?: string; game_name?: string }) =>
       put<{ ok: boolean }>(`/api/licenses/${id}`, body),
+  },
+
+  roblox: {
+    game: (universeId: string) =>
+      get<RobloxGameInfo>("/api/roblox/game", { universe_id: universeId }),
   },
 };
 
@@ -212,3 +230,14 @@ export const PLATFORM_LABEL: Record<string, string> = {
   bagibagi:   "BagiBagi",
   trakteer:   "Trakteer",
 };
+
+export interface RobloxGameInfo {
+  universeId: number;
+  name: string;
+  description: string;
+  creator: string;
+  playing: number;
+  visits: number;
+  maxPlayers: number;
+  thumbnailUrl: string | null;
+}

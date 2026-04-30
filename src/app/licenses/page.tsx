@@ -26,11 +26,15 @@ export default function LicensesPage() {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState<number | "new" | null>(null);
   const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editGameId, setEditGameId] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.license.list(user?.user_id ?? 1); // fallback
+      const res = await api.license.list(user?.user_id ?? 1);
       setLicenses(res.licenses ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -58,6 +62,25 @@ export default function LicensesPage() {
     } catch { /* silent */ }
   };
 
+  const startEdit = (lic: License) => {
+    setEditingId(lic.id);
+    setEditName(lic.game_name ?? "");
+    setEditGameId(lic.game_id);
+  };
+
+  const saveEdit = async (id: number) => {
+    if (!editGameId.trim()) return;
+    setSaving(true);
+    try {
+      await api.license.update(id, { game_id: editGameId.trim(), game_name: editName.trim() });
+      setLicenses((prev) => prev.map((l) =>
+        l.id === id ? { ...l, game_id: editGameId.trim(), game_name: editName.trim() || null } : l
+      ));
+      setEditingId(null);
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
   const handleCopy = (text: string, id: number | "new") => {
     copyToClipboard(text);
     setCopied(id);
@@ -69,6 +92,7 @@ export default function LicensesPage() {
   }
 
   if (!user) return null;
+
 
   const filtered = licenses.filter((l) =>
     !search || l.game_name?.toLowerCase().includes(search.toLowerCase()) || l.license_key.toLowerCase().includes(search.toLowerCase())
@@ -141,22 +165,57 @@ export default function LicensesPage() {
           : filtered.map((lic) => (
               <div key={lic.id} className={`glass-panel p-5 rounded-xl border border-outline-variant/10 shadow-lg ${lic.status !== "active" ? "opacity-75" : ""}`}>
                 <div className="flex justify-between items-start mb-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-xs ${lic.status === "active" ? "text-primary filled" : "text-outline"}`}>
-                        {lic.status === "active" ? "stars" : lic.status === "expired" ? "schedule" : "warning"}
-                      </span>
-                      <h3 className="font-headline font-bold text-base">{lic.game_name ?? lic.game_id}</h3>
-                      {currentKey === lic.license_key && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase tracking-wider">Current</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-outline font-mono tracking-wider">ID: {lic.game_id}</p>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    {editingId === lic.id ? (
+                      <div className="space-y-2">
+                        <input
+                          className="w-full bg-surface-container-lowest rounded-lg py-1.5 px-3 text-sm font-bold focus:ring-1 focus:ring-primary/40 outline-none"
+                          placeholder="Game Name" value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                        <input
+                          className="w-full bg-surface-container-lowest rounded-lg py-1.5 px-3 text-xs font-mono focus:ring-1 focus:ring-primary/40 outline-none"
+                          placeholder="Experience ID (e.g. 123456789)" value={editGameId}
+                          onChange={(e) => setEditGameId(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => saveEdit(lic.id)} disabled={saving || !editGameId.trim()}
+                            className="flex-1 py-1.5 rounded-lg bg-primary/20 text-primary text-xs font-bold disabled:opacity-50">
+                            {saving ? "Saving…" : "Save"}
+                          </button>
+                          <button onClick={() => setEditingId(null)}
+                            className="px-3 py-1.5 rounded-lg bg-surface-variant/40 text-on-surface-variant text-xs font-semibold">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-xs ${lic.status === "active" ? "text-primary filled" : "text-outline"}`}>
+                              {lic.status === "active" ? "stars" : lic.status === "expired" ? "schedule" : "warning"}
+                            </span>
+                            <h3 className="font-headline font-bold text-base truncate">{lic.game_name ?? lic.game_id}</h3>
+                            {currentKey === lic.license_key && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase tracking-wider shrink-0">Current</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-outline font-mono tracking-wider">ID: {lic.game_id}</p>
+                        </div>
+                        <button onClick={() => startEdit(lic)}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-surface-variant/40 text-outline hover:text-on-surface transition-colors">
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${statusBadge[lic.status]}`}>
-                    {lic.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />}
-                    {lic.status}
-                  </span>
+                  {editingId !== lic.id && (
+                    <span className={`ml-2 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 ${statusBadge[lic.status]}`}>
+                      {lic.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />}
+                      {lic.status}
+                    </span>
+                  )}
                 </div>
 
                 <div className="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/5 mb-4">

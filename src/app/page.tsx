@@ -1,9 +1,32 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { api, formatRp, formatRpFull, PLATFORM_COLOR, PLATFORM_LABEL, type Donation, type LeaderboardEntry, type StatsResponse } from "@/lib/api";
-import { getLicenseKey } from "@/lib/auth";
+import {
+  api, formatRp, PLATFORM_COLOR, PLATFORM_LABEL,
+  type Donation, type LeaderboardEntry, type StatsResponse, type RobloxGameInfo,
+} from "@/lib/api";
+import { getLicenseKey, useAuth } from "@/lib/auth";
 import AuthGate from "@/components/AuthGate";
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+const PLATFORM_ICON: Record<string, string> = {
+  saweria: "volunteer_activism",
+  socialbuzz: "payments",
+  bagibagi: "card_giftcard",
+};
+const PLATFORM_ICON_CLS: Record<string, string> = {
+  saweria: "text-secondary",
+  socialbuzz: "text-tertiary",
+  bagibagi: "text-primary",
+};
+function timeAgo(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// ── StatCard ──────────────────────────────────────────────────────────────────
 function StatCard({ label, value, trend, dir, prefix }: {
   label: string; value: string; trend: string; dir: 1 | 0 | -1; prefix?: string;
 }) {
@@ -24,26 +47,87 @@ function StatCard({ label, value, trend, dir, prefix }: {
   );
 }
 
-const PLATFORM_ICON: Record<string, string> = {
-  saweria: "volunteer_activism",
-  socialbuzz: "payments",
-  bagibagi: "card_giftcard",
-};
+// ── GamePreviewCard ───────────────────────────────────────────────────────────
+function GamePreviewCard({ universeId, gameName }: { universeId: string; gameName: string | null }) {
+  const [info, setInfo] = useState<RobloxGameInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-const PLATFORM_ICON_CLS: Record<string, string> = {
-  saweria: "text-secondary",
-  socialbuzz: "text-tertiary",
-  bagibagi: "text-primary",
-};
+  useEffect(() => {
+    api.roblox.game(universeId)
+      .then(setInfo)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [universeId]);
 
-function timeAgo(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const fmt = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K`
+    : String(n);
+
+  return (
+    <section>
+      <p className="font-headline uppercase tracking-widest text-[10px] font-bold text-on-primary-container mb-3">
+        Connected Experience
+      </p>
+      {loading ? (
+        <div className="h-40 rounded-2xl bg-surface-container-highest animate-pulse border border-outline-variant/10" />
+      ) : error || !info ? (
+        <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-highest p-4 flex items-center gap-3">
+          <div className="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-3xl text-outline">videogame_asset</span>
+          </div>
+          <div>
+            <p className="font-bold text-sm">{gameName ?? `Universe ${universeId}`}</p>
+            <p className="text-[11px] text-outline mt-0.5 font-mono">ID: {universeId}</p>
+            <p className="text-[11px] text-error mt-1">Could not fetch Roblox data</p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-highest overflow-hidden shadow-lg">
+          {/* Thumbnail */}
+          <div className="relative h-36 w-full bg-surface-container">
+            {info.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={info.thumbnailUrl} alt={info.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-5xl text-outline">videogame_asset</span>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
+              <div>
+                <h3 className="font-headline font-bold text-base leading-tight text-white drop-shadow">{info.name}</h3>
+                <p className="text-[11px] text-white/60">by {info.creator}</p>
+              </div>
+              <span className="text-[9px] px-2 py-1 rounded-full bg-emerald-500/30 text-emerald-400 font-bold uppercase tracking-wider border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_#10b981]" />
+                Active
+              </span>
+            </div>
+          </div>
+          {/* Stats row */}
+          <div className="grid grid-cols-3 divide-x divide-outline-variant/10 border-t border-outline-variant/10">
+            {[
+              { icon: "person",    label: "Playing", val: fmt(info.playing) },
+              { icon: "bar_chart", label: "Visits",  val: fmt(info.visits) },
+              { icon: "group",     label: "Max",     val: fmt(info.maxPlayers) },
+            ].map(({ icon, label, val }) => (
+              <div key={label} className="flex flex-col items-center py-3 gap-0.5">
+                <span className="material-symbols-outlined text-sm text-primary">{icon}</span>
+                <span className="text-sm font-extrabold font-headline">{val}</span>
+                <span className="text-[9px] text-outline uppercase tracking-widest">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
+// ── Page entry ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   return (
     <AuthGate>
@@ -53,15 +137,25 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const [key, setKey] = useState<string | null>(null);
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [recent, setRecent] = useState<Donation[]>([]);
-  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [key,      setKey]      = useState<string | null>(null);
+  const [gameId,   setGameId]   = useState<string | null>(null);
+  const [gameName, setGameName] = useState<string | null>(null);
+  const [stats,    setStats]    = useState<StatsResponse | null>(null);
+  const [recent,   setRecent]   = useState<Donation[]>([]);
+  const [board,    setBoard]    = useState<LeaderboardEntry[]>([]);
+  const [loading,  setLoading]  = useState(true);
 
+  useEffect(() => { setKey(getLicenseKey()); }, []);
+
+  // Resolve game_id from current license key
   useEffect(() => {
-    setKey(getLicenseKey());
-  }, []);
+    if (!user?.user_id || !key) return;
+    api.license.list(user.user_id).then((res) => {
+      const lic = res.licenses?.find((l) => l.license_key === key);
+      if (lic) { setGameId(lic.game_id); setGameName(lic.game_name); }
+    }).catch(() => {});
+  }, [user?.user_id, key]);
 
   const load = useCallback(async () => {
     if (!key) return;
@@ -78,31 +172,30 @@ function DashboardContent() {
     finally { setLoading(false); }
   }, [key]);
 
-  useEffect(() => { 
-    if (key) {
-      load(); 
-      const id = setInterval(load, 30_000); 
-      return () => clearInterval(id); 
-    } else {
-      setLoading(false);
-    }
+  useEffect(() => {
+    if (key) { load(); const id = setInterval(load, 30_000); return () => clearInterval(id); }
+    else setLoading(false);
   }, [key, load]);
 
-  const t = stats?.totals;
-  const bars = stats?.by_day ?? [];
+  const t      = stats?.totals;
+  const bars   = stats?.by_day ?? [];
   const maxBar = Math.max(...bars.map((b) => b.total), 1);
 
   return (
     <div className="px-4 pb-8 space-y-8 max-w-lg mx-auto">
-      {/* Hero Stats */}
+
+      {/* Stats */}
       <section className="grid grid-cols-2 gap-3 pt-4">
-        <StatCard label="Total Revenue"  value={loading ? "—" : formatRp(t?.total ?? 0)}         trend={t ? "Live" : "—"}   dir={1}  prefix="Rp " />
-        <StatCard label="Unique Donors"  value={loading ? "—" : String(t?.unique_donors ?? 0)}   trend={t ? "Live" : "—"}   dir={1}  />
-        <StatCard label="Donations"      value={loading ? "—" : String(t?.count ?? 0)}            trend="This license"        dir={0}  />
-        <StatCard label="Avg Donation"   value={loading ? "—" : formatRp(t?.avg ?? 0)}            trend={t ? "per donor" : "—"} dir={1} prefix="Rp " />
+        <StatCard label="Total Revenue" value={loading ? "—" : formatRp(t?.total ?? 0)}        trend={t ? "Live" : "—"}      dir={1} prefix="Rp " />
+        <StatCard label="Unique Donors" value={loading ? "—" : String(t?.unique_donors ?? 0)}  trend={t ? "Live" : "—"}      dir={1} />
+        <StatCard label="Donations"     value={loading ? "—" : String(t?.count ?? 0)}           trend="This license"           dir={0} />
+        <StatCard label="Avg Donation"  value={loading ? "—" : formatRp(t?.avg ?? 0)}           trend={t ? "per donor" : "—"} dir={1} prefix="Rp " />
       </section>
 
-      {/* Donation Trend (by day) */}
+      {/* Game Preview */}
+      {gameId && <GamePreviewCard universeId={gameId} gameName={gameName} />}
+
+      {/* Trend chart */}
       <section className="space-y-3">
         <div className="flex justify-between items-end">
           <h2 className="text-lg font-bold font-headline">Donation Trend</h2>
@@ -114,16 +207,14 @@ function DashboardContent() {
                 <div key={i} className="flex-1 rounded-t-sm bg-primary/10 animate-pulse" style={{ height: `${30 + i * 10}%` }} />
               ))
             : bars.length > 0
-            ? bars.map((b, i) => {
+            ? bars.map((b) => {
                 const h = Math.max(4, Math.round((b.total / maxBar) * 100));
                 const isMax = b.total === maxBar;
                 return (
                   <div key={b.day} className="flex-1 flex flex-col items-center gap-1">
                     <div className="w-full rounded-t-sm" style={{
                       height: `${h}%`,
-                      background: isMax
-                        ? "linear-gradient(135deg,#aec6ff,#1e3c72)"
-                        : `rgba(174,198,255,${0.15 + h / 250})`,
+                      background: isMax ? "linear-gradient(135deg,#aec6ff,#1e3c72)" : `rgba(174,198,255,${0.15 + h / 250})`,
                       boxShadow: isMax ? "0 -8px 16px rgba(174,198,255,0.2)" : undefined,
                     }} />
                   </div>
@@ -135,14 +226,12 @@ function DashboardContent() {
         </div>
         {bars.length > 0 && (
           <div className="flex justify-between px-1 text-[9px] text-on-surface-variant font-mono">
-            {bars.map((b) => (
-              <span key={b.day}>{new Date(b.day).toLocaleDateString("id-ID", { weekday: "short" })}</span>
-            ))}
+            {bars.map((b) => <span key={b.day}>{new Date(b.day).toLocaleDateString("id-ID", { weekday: "short" })}</span>)}
           </div>
         )}
       </section>
 
-      {/* Recent Stream */}
+      {/* Recent */}
       <section className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-bold font-headline">Recent Stream</h2>
@@ -175,9 +264,7 @@ function DashboardContent() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-base font-extrabold font-headline text-primary">
-                    Rp {formatRp(d.amount)}
-                  </span>
+                  <span className="text-base font-extrabold font-headline text-primary">Rp {formatRp(d.amount)}</span>
                 </div>
               ))
           }
