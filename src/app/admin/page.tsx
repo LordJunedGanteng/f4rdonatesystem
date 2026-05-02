@@ -19,7 +19,11 @@ function AdminContent() {
   const [genPassword, setGenPassword] = useState("");
   const [genGameId, setGenGameId] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [generatedData, setGeneratedData] = useState<{
+    username: string;
+    license_key: string;
+    game_id: string;
+  } | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -34,8 +38,8 @@ function AdminContent() {
   const generateLicense = async () => {
     if (!genUsername || !genPassword) return;
     setGenerating(true);
+    const targetGameId = genGameId || "default";
     try {
-      // Single admin endpoint: creates user + license atomically
       const res = await apiCall<{ ok: boolean; user_id: number; username: string; license_key: string }>(
         "/api/admin/users",
         {
@@ -44,12 +48,16 @@ function AdminContent() {
           body: JSON.stringify({
             username: genUsername,
             password: genPassword,
-            game_id: genGameId || "default",
+            game_id: targetGameId,
             game_name: genGameId || undefined,
           }),
         }
       );
-      setGeneratedKey(res.license_key);
+      setGeneratedData({
+        username: res.username,
+        license_key: res.license_key,
+        game_id: targetGameId,
+      });
       setGenUsername("");
       setGenPassword("");
       setGenGameId("");
@@ -67,6 +75,17 @@ function AdminContent() {
       loadUsers();
     } catch { /* silent */ }
   };
+
+  // Helper for Roblox Config
+  const getRobloxConfig = (key: string) => {
+    return `-- STRIX F4R CONFIGURATION\nreturn {\n    LicenseKey = "${key}",\n    Version = "2.0.0"\n}`;
+  };
+
+  const webhookUrls = generatedData ? {
+    saweria:    `https://f4rmultidonate.vercel.app/api/webhook/${generatedData.game_id}/saweria`,
+    socialbuzz: `https://f4rmultidonate.vercel.app/api/webhook/${generatedData.game_id}/socialbuzz`,
+    trakteer:   `https://f4rmultidonate.vercel.app/api/webhook/${generatedData.game_id}/trakteer`,
+  } : null;
 
   return (
     <main className="flex-1 md:ml-64 min-h-screen bg-surface pt-16 md:pt-0">
@@ -107,48 +126,166 @@ function AdminContent() {
           ))}
         </div>
 
-        {/* Generate New Key */}
-        <section className="bg-surface-container/40 border border-outline-variant/30 rounded-xl p-6 mb-8 backdrop-blur-md">
-          <h3 className="font-headline text-2xl font-semibold text-on-surface mb-6 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">key</span>
-            Generate New License
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input
-              placeholder="Username"
-              value={genUsername}
-              onChange={(e) => setGenUsername(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-            />
-            <input
-              placeholder="Password"
-              type="password"
-              value={genPassword}
-              onChange={(e) => setGenPassword(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-            />
-            <input
-              placeholder="Game/Universe ID (optional)"
-              value={genGameId}
-              onChange={(e) => setGenGameId(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-            />
-            <button
-              onClick={generateLicense}
-              disabled={generating || !genUsername || !genPassword}
-              className="bg-primary-container text-on-primary-container border border-primary shadow-[0_0_8px_rgba(128,131,255,0.4)] font-headline text-xs font-semibold uppercase tracking-wider py-2.5 px-4 rounded-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[18px]">key</span>
-              {generating ? "Generating..." : "Generate"}
-            </button>
-          </div>
-          {generatedKey && (
-            <div className="mt-4 bg-secondary/10 border border-secondary/30 rounded-lg p-4">
-              <p className="font-headline text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Generated License Key</p>
-              <code className="text-primary code-font text-lg break-all">{generatedKey}</code>
+        {/* Generate New Key Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Form */}
+          <section className="lg:col-span-1 bg-surface-container/40 border border-outline-variant/30 rounded-xl p-6 backdrop-blur-md h-fit">
+            <h3 className="font-headline text-xl font-semibold text-on-surface mb-6 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">person_add</span>
+              Register New User
+            </h3>
+            <div className="flex flex-col gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Username</label>
+                <input
+                  placeholder="e.g. lordjuned"
+                  value={genUsername}
+                  onChange={(e) => setGenUsername(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Password</label>
+                <input
+                  placeholder="••••••••"
+                  type="password"
+                  value={genPassword}
+                  onChange={(e) => setGenPassword(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Game ID (UniverseID)</label>
+                <input
+                  placeholder="e.g. 12345678"
+                  value={genGameId}
+                  onChange={(e) => setGenGameId(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+              <button
+                onClick={generateLicense}
+                disabled={generating || !genUsername || !genPassword}
+                className="mt-2 bg-primary text-on-primary font-headline text-xs font-bold uppercase tracking-wider py-3 px-4 rounded-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">key</span>
+                {generating ? "Generating..." : "Generate License"}
+              </button>
             </div>
-          )}
-        </section>
+          </section>
+
+          {/* Results / Success Card */}
+          <section className="lg:col-span-2 space-y-6">
+            {!generatedData ? (
+              <div className="h-full border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center p-12 text-center">
+                <span className="material-symbols-outlined text-outline-variant text-[64px] mb-4">info</span>
+                <p className="text-on-surface-variant font-headline">Generate a license to see account details, webhooks, and Roblox configuration.</p>
+              </div>
+            ) : (
+              <div className="bg-surface-container/60 border border-secondary/30 rounded-xl overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Status Bar */}
+                <div className="bg-secondary/10 px-6 py-3 border-b border-secondary/20 flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-secondary font-headline text-xs font-bold uppercase tracking-widest">
+                    <span className="material-symbols-outlined text-sm filled">check_circle</span>
+                    User & License Created Successfully
+                  </div>
+                  <button onClick={() => setGeneratedData(null)} className="text-on-surface-variant hover:text-on-surface transition-colors">
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Left Column: License & Webhooks */}
+                  <div className="space-y-6">
+                    {/* Account Info */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">account_circle</span>
+                        Account Info
+                      </h4>
+                      <div className="bg-surface-container-highest/50 rounded-lg p-3 space-y-2 border border-outline-variant/20">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-on-surface-variant">Username:</span>
+                          <span className="text-on-surface font-mono font-bold">{generatedData.username}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-on-surface-variant">Universe ID:</span>
+                          <span className="text-on-surface font-mono">{generatedData.game_id}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* License Info */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">vpn_key</span>
+                        Informasi License
+                      </h4>
+                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 relative group">
+                        <code className="text-primary code-font text-sm break-all font-bold tracking-wider">{generatedData.license_key}</code>
+                        <button 
+                          onClick={() => navigator.clipboard.writeText(generatedData.license_key)}
+                          className="absolute right-2 top-2 text-primary hover:scale-110 transition-transform"
+                        >
+                          <span className="material-symbols-outlined text-sm">content_copy</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Webhooks */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">webhook</span>
+                        Informasi Webhook
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.entries(webhookUrls || {}).map(([name, url]) => (
+                          <div key={name} className="bg-surface-container-low rounded-lg p-2.5 border border-outline-variant/10 flex flex-col gap-1">
+                            <span className="text-[9px] font-bold uppercase text-on-surface-variant">{name}</span>
+                            <div className="flex items-center justify-between gap-2 overflow-hidden">
+                              <code className="text-[10px] text-outline truncate flex-1">{url}</code>
+                              <button onClick={() => navigator.clipboard.writeText(url)} className="text-primary hover:text-secondary">
+                                <span className="material-symbols-outlined text-sm">content_copy</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Roblox Config */}
+                  <div className="flex flex-col h-full">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm">settings_remote</span>
+                      Config Roblox (STRIX)
+                    </h4>
+                    <div className="flex-1 bg-surface-container-highest rounded-xl p-4 border border-outline-variant/30 relative flex flex-col">
+                      <div className="flex items-center gap-2 mb-3 border-b border-outline-variant/20 pb-2">
+                        <div className="w-2 h-2 rounded-full bg-error/40" />
+                        <div className="w-2 h-2 rounded-full bg-warning/40" />
+                        <div className="w-2 h-2 rounded-full bg-secondary/40" />
+                        <span className="text-[10px] text-on-surface-variant font-mono ml-1">Config.luau</span>
+                      </div>
+                      <pre className="text-[11px] text-primary-fixed leading-relaxed font-mono whitespace-pre-wrap overflow-auto">
+                        {getRobloxConfig(generatedData.license_key)}
+                      </pre>
+                      <button 
+                        onClick={() => navigator.clipboard.writeText(getRobloxConfig(generatedData.license_key))}
+                        className="absolute bottom-4 right-4 bg-primary text-on-primary p-2 rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
+                      >
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant mt-4 italic">
+                      * Paste code di atas ke ModuleScript config STRIX dalam game Roblox Anda.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
 
         {/* User Management Table */}
         <section className="bg-surface-container/40 border border-outline-variant/30 rounded-xl flex flex-col backdrop-blur-md overflow-hidden">
