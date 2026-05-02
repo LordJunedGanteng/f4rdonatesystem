@@ -62,7 +62,10 @@ export function useAuth() {
     try {
       // Very basic JWT decode (doesn't verify signature, just reads payload)
       // Signature is verified by the backend on actual API calls.
-      const payloadStr = atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
+      // Re-add base64 padding stripped during base64url encoding
+      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const payloadStr = atob(padded);
       const payload = JSON.parse(payloadStr) as UserPayload;
       
       const now = Math.floor(Date.now() / 1000);

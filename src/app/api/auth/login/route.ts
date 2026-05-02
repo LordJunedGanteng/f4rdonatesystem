@@ -37,8 +37,12 @@ export async function POST(request: NextRequest) {
     };
 
     // Format as a dummy JWT: header.payload.signature
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const data = btoa(JSON.stringify(payload)).replace(/=/g, "");
+    // Use base64url encoding (RFC 4648): replace +→-, /→_, strip padding =
+    // This ensures browser's atob() can decode it correctly after re-adding padding.
+    const toBase64Url = (str: string) =>
+      Buffer.from(str).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    const header = toBase64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const data = toBase64Url(JSON.stringify(payload));
     const token = `${header}.${data}.signature`;
 
     return NextResponse.json({
