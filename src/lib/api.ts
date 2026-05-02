@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL!;
+const BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window !== 'undefined') {
@@ -9,65 +9,84 @@ function getAuthHeader(): Record<string, string> {
 }
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(BASE + path);
+  const safeBase = BASE.replace(/\/$/, "");
+  const url = new URL(safeBase + path, window.location.origin);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), { headers: getAuthHeader() });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API ${path} → ${res.status}`);
+    let msg = text;
+    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
+    throw new Error(msg || `API ${path} → ${res.status}`);
   }
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(BASE + path, {
+  const safeBase = BASE.replace(/\/$/, "");
+  const res = await fetch(safeBase + path, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API ${path} → ${res.status}`);
+    let msg = text;
+    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
+    throw new Error(msg || `API ${path} → ${res.status}`);
   }
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(BASE + path, {
+  const safeBase = BASE.replace(/\/$/, "");
+  const res = await fetch(safeBase + path, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API ${path} → ${res.status}`);
+    let msg = text;
+    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
+    throw new Error(msg || `API ${path} → ${res.status}`);
   }
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(BASE + path, {
+  const safeBase = BASE.replace(/\/$/, "");
+  const res = await fetch(safeBase + path, {
     method: "DELETE",
     headers: getAuthHeader(),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API ${path} → ${res.status}`);
+    let msg = text;
+    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
+    throw new Error(msg || `API ${path} → ${res.status}`);
   }
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
 }
 
-export const WORKER_URL = BASE;
+export const WORKER_URL = process.env.NEXT_PUBLIC_CF_WORKER_URL || BASE;
 
-
-export const WEBHOOK_URLS: Record<string, string> = {
-  saweria:    `${BASE}/webhook/saweria`,
-  socialbuzz: `${BASE}/webhook/socialbuzz`,
-  bagibagi:   `${BASE}/webhook/bagibagi`,
-};
+export function getWebhookUrls(gameId: string): Record<string, string> {
+  return {
+    saweria:    `${WORKER_URL}/webhook/${gameId}/saweria`,
+    socialbuzz: `${WORKER_URL}/webhook/${gameId}/socialbuzz`,
+    bagibagi:   `${WORKER_URL}/webhook/${gameId}/bagibagi`,
+    trakteer:   `${WORKER_URL}/webhook/${gameId}/trakteer`,
+  };
+}
 
 export const apiCall = async <T>(path: string, options: RequestInit): Promise<T> => {
-  const res = await fetch(BASE + path, {
+  const safeBase = BASE.replace(/\/$/, "");
+  const res = await fetch(safeBase + path, {
     ...options,
     headers: {
       ...options.headers,
@@ -76,41 +95,56 @@ export const apiCall = async <T>(path: string, options: RequestInit): Promise<T>
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `API ${path} → ${res.status}`);
+    let msg = text;
+    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
+    throw new Error(msg || `API ${path} → ${res.status}`);
   }
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
 }
 
 export const api = {
   status: () => get<{ ok: boolean; ts: number }>("/api/status"),
 
+  games: {
+    list: () =>
+      get<{ games: GameEntry[] }>("/api/games"),
+    create: (body: { game_name: string; roblox_game_id: string; saweria_username?: string; bagibagi_username?: string; is_temporary?: boolean }) =>
+      post<{ ok: boolean; game: GameEntry }>("/api/games", body),
+    get: (gameId: string) =>
+      get<{ ok: boolean; game: GameEntry; donations: Donation[]; stats: { count: number; total: number } }>(`/api/games/${gameId}`),
+    update: (gameId: string, body: Partial<{ game_name: string; roblox_game_id: string; saweria_username: string; bagibagi_username: string; is_temporary: boolean }>) =>
+      put<{ ok: boolean; game: GameEntry }>(`/api/games/${gameId}`, body),
+    delete: (gameId: string) =>
+      del<{ ok: boolean }>(`/api/games/${gameId}`),
+  },
+
   platform: {
     generateSecret: (platform: string) =>
-      post<{ ok: boolean, webhook_secret: string, webhook_url: string }>("/api/platform/generate-secret", { platform }),
-
+      post<{ ok: boolean; webhook_secret: string; webhook_url: string }>("/api/platform/generate-secret", { platform }),
     saveApiKey: (platform: string, apiKey: string) =>
       post<{ ok: boolean }>("/api/platform/save-apikey", { platform, api_key: apiKey }),
-
     getConfigs: () =>
       get<{ configs: PlatformConfig[] }>("/api/platform/configs"),
-
     toggle: (platform: string, isActive: boolean) =>
       post<{ ok: boolean }>("/api/platform/toggle", { platform, is_active: isActive }),
   },
 
   donations: {
-    recent: (licenseKey: string, limit = 10) =>
+    recent: (gameId: string, limit = 10) =>
       get<{ donations: Donation[] }>("/api/donations/recent", {
-        license_key: licenseKey,
+        game_id: gameId,
         limit: String(limit),
       }),
-    stats: (licenseKey: string) =>
-      get<StatsResponse>("/api/donations/stats", { license_key: licenseKey }),
+    stats: (gameId: string) =>
+      get<StatsResponse>("/api/donations/stats", { game_id: gameId }),
   },
-  leaderboard: (licenseKey: string, timeframe: string) =>
+
+  leaderboard: (gameId: string, timeframe: string) =>
     get<{ leaderboard: LeaderboardEntry[] }>(`/api/leaderboard/${timeframe}`, {
-      license_key: licenseKey,
+      game_id: gameId,
     }),
+
   admin: {
     users: () =>
       get<{ users: AdminUser[] }>("/api/admin/users"),
@@ -140,6 +174,19 @@ export const api = {
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+export interface GameEntry {
+  game_id:           string;
+  secret_key:        string;
+  game_name:         string;
+  roblox_game_id:    string;
+  saweria_username:  string;
+  bagibagi_username: string;
+  is_temporary:      boolean;
+  created_at:        string;
+  webhook_url_saweria?:  string;
+  webhook_url_bagibagi?: string;
+}
+
 export interface AdminUser {
   id: number;
   username: string;
