@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window !== 'undefined') {
@@ -8,9 +8,23 @@ function getAuthHeader(): Record<string, string> {
   return {};
 }
 
+function getFullUrl(path: string): string {
+  // Ensure path starts with /
+  const safePath = path.startsWith('/') ? path : `/${path}`;
+  
+  if (!BASE) return safePath;
+  
+  // If BASE already ends with /api and path starts with /api, prevent duplication
+  if (BASE.endsWith('/api') && safePath.startsWith('/api/')) {
+    return BASE + safePath.replace('/api/', '/');
+  }
+  
+  return BASE + safePath;
+}
+
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const safeBase = BASE.replace(/\/$/, "");
-  const url = new URL(safeBase + path, window.location.origin);
+  const urlStr = getFullUrl(path);
+  const url = new URL(urlStr, typeof window !== 'undefined' ? window.location.origin : undefined);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), { headers: getAuthHeader() });
   if (!res.ok) {
@@ -24,8 +38,7 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const safeBase = BASE.replace(/\/$/, "");
-  const res = await fetch(safeBase + path, {
+  const res = await fetch(getFullUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
@@ -41,8 +54,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const safeBase = BASE.replace(/\/$/, "");
-  const res = await fetch(safeBase + path, {
+  const res = await fetch(getFullUrl(path), {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
@@ -58,8 +70,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string): Promise<T> {
-  const safeBase = BASE.replace(/\/$/, "");
-  const res = await fetch(safeBase + path, {
+  const res = await fetch(getFullUrl(path), {
     method: "DELETE",
     headers: getAuthHeader(),
   });
@@ -85,8 +96,7 @@ export function getWebhookUrls(gameId: string): Record<string, string> {
 }
 
 export const apiCall = async <T>(path: string, options: RequestInit): Promise<T> => {
-  const safeBase = BASE.replace(/\/$/, "");
-  const res = await fetch(safeBase + path, {
+  const res = await fetch(getFullUrl(path), {
     ...options,
     headers: {
       ...options.headers,
