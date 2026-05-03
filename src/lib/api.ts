@@ -1,300 +1,104 @@
-const BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-
-function getAuthHeader(): Record<string, string> {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('f4r_token');
-    if (token) return { Authorization: `Bearer ${token}` };
-  }
-  return {};
-}
-
-function getFullUrl(path: string): string {
-  // Ensure path starts with /
-  const safePath = path.startsWith('/') ? path : `/${path}`;
-  
-  if (!BASE) return safePath;
-  
-  // If BASE already ends with /api and path starts with /api, prevent duplication
-  if (BASE.endsWith('/api') && safePath.startsWith('/api/')) {
-    return BASE + safePath.replace('/api/', '/');
-  }
-  
-  return BASE + safePath;
-}
-
-async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const urlStr = getFullUrl(path);
-  const url = new URL(urlStr, typeof window !== 'undefined' ? window.location.origin : undefined);
-  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), { headers: getAuthHeader() });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = text;
-    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
-    throw new Error(msg || `API ${path} → ${res.status}`);
-  }
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(getFullUrl(path), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeader() },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = text;
-    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
-    throw new Error(msg || `API ${path} → ${res.status}`);
-  }
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
-}
-
-async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(getFullUrl(path), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...getAuthHeader() },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = text;
-    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
-    throw new Error(msg || `API ${path} → ${res.status}`);
-  }
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
-}
-
-async function del<T>(path: string): Promise<T> {
-  const res = await fetch(getFullUrl(path), {
-    method: "DELETE",
-    headers: getAuthHeader(),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = text;
-    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
-    throw new Error(msg || `API ${path} → ${res.status}`);
-  }
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
-}
-
-export const WORKER_URL = process.env.NEXT_PUBLIC_CF_WORKER_URL || BASE;
-
-export function getWebhookUrls(gameId: string): Record<string, string> {
-  return {
-    saweria:    `${WORKER_URL}/webhook/${gameId}/saweria`,
-    socialbuzz: `${WORKER_URL}/webhook/${gameId}/socialbuzz`,
-    bagibagi:   `${WORKER_URL}/webhook/${gameId}/bagibagi`,
-    trakteer:   `${WORKER_URL}/webhook/${gameId}/trakteer`,
-  };
-}
-
-export const apiCall = async <T>(path: string, options: RequestInit): Promise<T> => {
-  const res = await fetch(getFullUrl(path), {
-    ...options,
-    headers: {
-      ...options.headers,
-      ...getAuthHeader(),
-    }
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = text;
-    try { msg = JSON.parse(text).error || text; } catch { /* ignore */ }
-    throw new Error(msg || `API ${path} → ${res.status}`);
-  }
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`); }
-}
-
-export const api = {
-  status: () => get<{ ok: boolean; ts: number }>("/api/status"),
-
-  games: {
-    list: () =>
-      get<{ games: GameEntry[] }>("/api/games"),
-    create: (body: { game_name: string; roblox_game_id: string; saweria_username?: string; bagibagi_username?: string; is_temporary?: boolean }) =>
-      post<{ ok: boolean; game: GameEntry }>("/api/games", body),
-    get: (gameId: string) =>
-      get<{ ok: boolean; game: GameEntry; donations: Donation[]; stats: { count: number; total: number } }>(`/api/games/${gameId}`),
-    update: (gameId: string, body: Partial<{ game_name: string; roblox_game_id: string; saweria_username: string; bagibagi_username: string; is_temporary: boolean }>) =>
-      put<{ ok: boolean; game: GameEntry }>(`/api/games/${gameId}`, body),
-    delete: (gameId: string) =>
-      del<{ ok: boolean }>(`/api/games/${gameId}`),
-  },
-
-  platform: {
-    generateSecret: (platform: string) =>
-      post<{ ok: boolean; webhook_secret: string; webhook_url: string }>("/api/platform/generate-secret", { platform }),
-    saveApiKey: (platform: string, apiKey: string) =>
-      post<{ ok: boolean }>("/api/platform/save-apikey", { platform, api_key: apiKey }),
-    getConfigs: () =>
-      get<{ configs: PlatformConfig[] }>("/api/platform/configs"),
-    toggle: (platform: string, isActive: boolean) =>
-      post<{ ok: boolean }>("/api/platform/toggle", { platform, is_active: isActive }),
-  },
-
-  donations: {
-    recent: (gameId: string, limit = 10) =>
-      get<{ donations: Donation[] }>("/api/donations/recent", {
-        game_id: gameId,
-        limit: String(limit),
-      }),
-    stats: (gameId: string) =>
-      get<StatsResponse>("/api/donations/stats", { game_id: gameId }),
-  },
-
-  leaderboard: (gameId: string, timeframe: string) =>
-    get<{ leaderboard: LeaderboardEntry[] }>(`/api/leaderboard/${timeframe}`, {
-      game_id: gameId,
-    }),
-
-  admin: {
-    users: () =>
-      get<{ users: AdminUser[] }>("/api/admin/users"),
-    deleteUser: (id: number) =>
-      del<{ ok: boolean }>(`/api/admin/users/${id}`),
-  },
-
-  license: {
-    validate: (licenseKey: string, gameId: string) =>
-      post<LicenseValidation>("/api/license/validate", {
-        license_key: licenseKey,
-        game_id: gameId,
-        timestamp: Math.floor(Date.now() / 1000),
-      }),
-    list: (userId: number) =>
-      get<{ licenses: License[] }>("/api/licenses", { user_id: String(userId) }),
-    create: (body: { user_id: number; game_id: string; game_name?: string; expires_at?: string }) =>
-      post<{ license_key: string }>("/api/licenses", body),
-    update: (id: number, body: { status?: string; expires_at?: string; game_id?: string; game_name?: string }) =>
-      put<{ ok: boolean }>(`/api/licenses/${id}`, body),
-  },
-
-  roblox: {
-    game: (universeId: string) =>
-      get<RobloxGameInfo>("/api/roblox/game", { universe_id: universeId }),
-  },
-};
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-export interface GameEntry {
-  game_id:           string;
-  secret_key:        string;
-  game_name:         string;
-  roblox_game_id:    string;
-  saweria_username:  string;
-  bagibagi_username: string;
-  is_temporary:      boolean;
-  created_at:        string;
-  webhook_url_saweria?:  string;
-  webhook_url_bagibagi?: string;
-}
-
 export interface AdminUser {
   id: number;
   username: string;
-  role: string;
+  role: "admin" | "user";
+  license_key?: string;
+  game_id?: string;
+  status?: "active" | "suspended" | "expired";
   created_at: string;
-  license_key: string | null;
-  status: string | null;
-  universe_ids: string[];
-  platform_api_keys: Record<string, string>;
 }
+
+export interface GameEntry {
+  game_id: string;
+  game_name: string;
+  secret_key: string;
+  created_at: string;
+}
+
+export const getWebhookUrls = (gameId: string) => ({
+  saweria:    `https://f4rmultidonate.vercel.app/api/webhook/${gameId}/saweria`,
+  socialbuzz: `https://f4rmultidonate.vercel.app/api/webhook/${gameId}/socialbuzz`,
+  trakteer:   `https://f4rmultidonate.vercel.app/api/webhook/${gameId}/trakteer`,
+});
+
 export interface Donation {
   id?:          number;
-  donation_id?: string;
-  donor_name:   string;
+  username:     string;
   amount:       number;
+  message:      string;
   platform:     string;
-  message?:     string;
-  avatar_url?:  string;
-  currency?:    string;
-  timestamp:    string;
+  universe_id:  string;
+  created_at?:  string;
 }
 
 export interface LeaderboardEntry {
-  rank:           number;
-  donor_name:     string;
-  platform:       string;
-  total_amount:   number;
-  donation_count: number;
+  username: string;
+  amount: number;
 }
 
 export interface StatsResponse {
-  totals: { count: number; total: number; avg: number; unique_donors: number } | null;
-  by_platform: { platform: string; total: number; count: number }[];
-  by_day:      { day: string; total: number; count: number }[];
+  totalAmount: number;
+  totalDonations: number;
+  donations: Donation[];
 }
-
-export interface LicenseValidation {
-  valid:        boolean;
-  license_key?: string;
-  owner?:       string;
-  expires_at?:  string;
-  reason?:      string;
-}
-
-export interface PlatformConfig {
-  platform:         string;
-  has_api_key:      boolean;
-  webhook_secret:   string | null;
-  webhook_url:      string | null;
-  is_active:        boolean;
-  last_verified_at: string | null;
-  platform_api_key?: string;
-}
-
-export interface License {
-  id:          number;
-  license_key: string;
-  game_id:     string;
-  game_name:   string | null;
-  status:      "active" | "suspended" | "expired";
-  expires_at:  string | null;
-  created_at:  string;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-export function formatRp(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}jt`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return String(n);
-}
-
-export function formatRpFull(n: number): string {
-  return Math.floor(n)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-
-export const PLATFORM_COLOR: Record<string, string> = {
-  saweria:    "text-primary",
-  socialbuzz: "text-secondary",
-  bagibagi:   "text-tertiary",
-  trakteer:   "text-error",
-};
 
 export const PLATFORM_LABEL: Record<string, string> = {
-  saweria:    "Saweria",
-  socialbuzz: "SocialBuzz",
-  bagibagi:   "BagiBagi",
-  trakteer:   "Trakteer",
+  saweria: "Saweria",
+  socialbuzz: "Socialbuzz",
+  trakteer: "Trakteer",
 };
 
-export interface RobloxGameInfo {
-  universeId: number;
-  name: string;
-  description: string;
-  creator: string;
-  playing: number;
-  visits: number;
-  maxPlayers: number;
-  thumbnailUrl: string | null;
+export const formatRp = (val: number) => 
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(val);
+
+/**
+ * Base api call that handles authentication and error management
+ */
+export async function apiCall<T>(
+  path: string, 
+  options: RequestInit = {}
+): Promise<T> {
+  let url: string;
+  
+  if (path.startsWith("http")) {
+    url = path;
+  } else {
+    const envBase = process.env.NEXT_PUBLIC_API_URL;
+    const windowBase = typeof window !== "undefined" ? window.location.origin : "";
+    const base = envBase || windowBase || "http://localhost:3000";
+    
+    // Clean up base and path - ABSOLUTELY NO EXTRA QUOTES OR SPACES
+    const cleanBase = base.trim().replace(/['"]+/g, "").replace(/\/+$/, "");
+    const cleanPath = path.trim().replace(/['"]+/g, "");
+    const finalPath = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+    
+    url = cleanBase + finalPath;
+  }
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    ...((options.headers as any) || {}),
+  };
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("API Call failed:", url, error);
+    throw error;
+  }
 }
+
+export const api = apiCall;

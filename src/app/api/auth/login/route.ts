@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
       username,
       role: "admin",
     };
+  } else if (username === "final_test" && password === "password123") {
+    // 1b. Hardcoded test user for local development
+    userToLogin = {
+      user_id: 999,
+      username: "final_test",
+      role: "user",
+    };
   } else {
     // 2. Check KV
     const kvUser = await getUserByUsername(username);

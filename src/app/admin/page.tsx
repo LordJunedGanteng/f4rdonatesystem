@@ -33,7 +33,9 @@ function AdminContent() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const generateLicense = async () => {
     if (!genUsername || !genPassword) return;
@@ -76,7 +78,6 @@ function AdminContent() {
     } catch { /* silent */ }
   };
 
-  // Helper for Roblox Config
   const getRobloxConfig = (key: string) => {
     return `-- STRIX F4R CONFIGURATION\nreturn {\n    LicenseKey = "${key}",\n    Version = "2.0.0"\n}`;
   };
@@ -90,7 +91,6 @@ function AdminContent() {
   return (
     <main className="flex-1 md:ml-64 min-h-screen bg-surface pt-16 md:pt-0">
       <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-8 md:py-10">
-        {/* Header */}
         <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h2 className="font-headline text-[40px] font-bold leading-[1.1] tracking-tight text-primary">Global Monitoring</h2>
@@ -104,7 +104,6 @@ function AdminContent() {
           </div>
         </header>
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {[
             { icon: "public", label: "Total Users", value: String(users.length), trend: "Active", color: "text-secondary" },
@@ -126,9 +125,7 @@ function AdminContent() {
           ))}
         </div>
 
-        {/* Generate New Key Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Form */}
           <section className="lg:col-span-1 bg-surface-container/40 border border-outline-variant/30 rounded-xl p-6 backdrop-blur-md h-fit">
             <h3 className="font-headline text-xl font-semibold text-on-surface mb-6 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">person_add</span>
@@ -174,7 +171,6 @@ function AdminContent() {
             </div>
           </section>
 
-          {/* Results / Success Card */}
           <section className="lg:col-span-2 space-y-6">
             {!generatedData ? (
               <div className="h-full border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center p-12 text-center">
@@ -182,8 +178,7 @@ function AdminContent() {
                 <p className="text-on-surface-variant font-headline">Generate a license to see account details, webhooks, and Roblox configuration.</p>
               </div>
             ) : (
-              <div className="bg-surface-container/60 border border-secondary/30 rounded-xl overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {/* Status Bar */}
+              <div className="bg-surface-container/60 border border-secondary/30 rounded-xl overflow-hidden backdrop-blur-md">
                 <div className="bg-secondary/10 px-6 py-3 border-b border-secondary/20 flex justify-between items-center">
                   <div className="flex items-center gap-2 text-secondary font-headline text-xs font-bold uppercase tracking-widest">
                     <span className="material-symbols-outlined text-sm filled">check_circle</span>
@@ -195,9 +190,7 @@ function AdminContent() {
                 </div>
 
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Left Column: License & Webhooks */}
                   <div className="space-y-6">
-                    {/* Account Info */}
                     <div>
                       <h4 className="text-[10px] font-bold uppercase tracking-widest text-secondary mb-3 flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm">account_circle</span>
@@ -215,7 +208,6 @@ function AdminContent() {
                       </div>
                     </div>
 
-                    {/* License Info */}
                     <div>
                       <h4 className="text-[10px] font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm">vpn_key</span>
@@ -232,7 +224,6 @@ function AdminContent() {
                       </div>
                     </div>
 
-                    {/* Webhooks */}
                     <div>
                       <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface mb-3 flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm">webhook</span>
@@ -254,7 +245,6 @@ function AdminContent() {
                     </div>
                   </div>
 
-                  {/* Right Column: Roblox Config */}
                   <div className="flex flex-col h-full">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface mb-3 flex items-center gap-2">
                       <span className="material-symbols-outlined text-sm">settings_remote</span>
@@ -287,7 +277,6 @@ function AdminContent() {
           </section>
         </div>
 
-        {/* User Management Table */}
         <section className="bg-surface-container/40 border border-outline-variant/30 rounded-xl flex flex-col backdrop-blur-md overflow-hidden">
           <div className="p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-high/50">
             <h3 className="font-headline text-lg font-semibold text-on-surface">User Management</h3>
